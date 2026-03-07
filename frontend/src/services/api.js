@@ -2,10 +2,10 @@ import axios from 'axios';
 
 // ============================================================
 // Axios instance — all requests go through here
-// Backend runs at http://localhost:5001/api
+// Backend runs at http://localhost:5000/api
 // ============================================================
 const api = axios.create({
-    baseURL: 'http://localhost:5001/api',
+    baseURL: 'http://localhost:5000/api',
     timeout: 10000,
     headers: {
         'Content-Type': 'application/json',
