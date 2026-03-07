@@ -9,6 +9,7 @@ import profilesRoutes from "./routes/profiles.js";
 import rankingsRoutes from "./routes/rankings.js";
 import aiRoutes from "./routes/ai.js";
 import uploadRoutes from "./routes/upload.js";
+import savedPlacesRouter from "./routes/savedPlaces.js";
 
 dotenv.config();
 
@@ -26,5 +27,6 @@ app.use("/profiles", profilesRoutes);
 app.use("/rankings", rankingsRoutes);
 app.use("/ai", aiRoutes);
 app.use("/upload", uploadRoutes);
+app.use("/saved-places", savedPlacesRouter);
 
 export default app;
