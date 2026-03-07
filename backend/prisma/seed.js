@@ -47,5 +47,35 @@ for (const loc of locations) {
     });
 }
 
+
+// Seed a test user
+const user = await prisma.user.upsert({
+    where: { auth0Id: "test|123" },
+    update: {},
+    create: {
+        auth0Id: "test|123",
+        email: "test@sensorysafe.com",
+        username: "testuser",
+    }
+});
+
+// Seed a test review
+const firstLocation = await prisma.location.findFirst();
+await prisma.review.upsert({
+    where: { id: "test-review-id-001" },
+    update: {},
+    create: {
+        id: "test-review-id-001",
+        userId: user.id,
+        locationId: firstLocation.id,
+        bodyText: "Very quiet and calm. Soft lighting throughout. Not many people around. Great place to focus and relax.",
+        rating: 5,
+        noiseLevel: 1,
+        lightingLevel: 4,
+        crowdLevel: 1,
+    }
+});
+
+
 console.log("Seeded clean locations + sensory scores");
 await prisma.$disconnect();

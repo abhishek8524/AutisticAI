@@ -13,6 +13,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^7.4.2",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
