@@ -1,5 +1,10 @@
 import prisma from "../src/lib/prisma.js";
 
+// Clean slate
+await prisma.sensoryScore.deleteMany({});
+await prisma.location.deleteMany({});
+
+// Seed locations
 await prisma.location.createMany({
     data: [
         {
@@ -26,5 +31,21 @@ await prisma.location.createMany({
     ],
 });
 
-console.log("Seeded locations");
+// Seed sensory scores
+const locations = await prisma.location.findMany();
+
+for (const loc of locations) {
+    await prisma.sensoryScore.create({
+        data: {
+            locationId: loc.id,
+            noiseScore: Math.random() * 5,
+            lightingScore: Math.random() * 5,
+            crowdScore: Math.random() * 5,
+            comfortScore: Math.random() * 5,
+            reviewCount: Math.floor(Math.random() * 20),
+        }
+    });
+}
+
+console.log("Seeded clean locations + sensory scores");
 await prisma.$disconnect();
