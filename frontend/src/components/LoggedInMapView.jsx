@@ -543,6 +543,7 @@ function LoggedInMapView({ onBackToHome, initialSearchQuery, initialFilter }) {
                   selectedLocationId={selectedLocation?.id}
                   selectedLocation={selectedLocation}
                   flyToLocation={flyToLocation}
+                  heatmapData={heatmapData}
                 />
               </div>
 
