@@ -5,42 +5,42 @@ import './LaunchScreen.css';
 
 const CATEGORIES = [
     {
-        icon: '/assets/icons/cat-library.svg',
+        emoji: '📚',
         title: 'Quiet Libraries',
         desc: 'Spaces with strictly enforced noise levels, comfortable seating, and calm environments.',
         tags: ['Low Noise', 'Focused'],
         filter: 'library',
     },
     {
-        icon: '/assets/icons/cat-cafe.svg',
+        emoji: '☕',
         title: 'Soft-Light Cafés',
         desc: 'Coffee shops prioritizing natural or warm lighting over harsh fluorescents.',
         tags: ['Warm Light', 'Cozy'],
         filter: 'cafe',
     },
     {
-        icon: '/assets/icons/cat-park.svg',
+        emoji: '🌳',
         title: 'Calm Parks',
         desc: 'Open outdoor areas away from heavy traffic with plenty of personal space.',
         tags: ['Open Space', 'Nature'],
         filter: 'park',
     },
     {
-        icon: '/assets/icons/cat-museum.svg',
+        emoji: '🏛️',
         title: 'Sensory Museums',
         desc: 'Museums offering dedicated quiet hours, low-stimulation zones, and relaxed rules.',
         tags: ['Quiet Hours', 'Spacious'],
         filter: 'museum',
     },
     {
-        icon: '/assets/icons/cat-retail.svg',
+        emoji: '🛍️',
         title: 'Accessible Retail',
         desc: 'Stores offering sensory-friendly shopping times with reduced music and dimmed lights.',
         tags: ['No Music', 'Low Crowds'],
         filter: 'retail',
     },
     {
-        icon: '/assets/icons/cat-explore.svg',
+        emoji: '🔍',
         title: 'Explore All Nearby',
         desc: 'View the sensory map to see real-time data and AI insights for places around you.',
         tags: ['Highly Recommended'],
@@ -50,10 +50,10 @@ const CATEGORIES = [
 ];
 
 const POPULAR_TAGS = [
-    { icon: '/assets/icons/tag-quiet.svg', label: 'Quiet spaces', filter: 'quiet' },
-    { icon: '/assets/icons/tag-light.svg', label: 'Soft lighting', filter: 'soft-lighting' },
-    { icon: '/assets/icons/tag-crowd.svg', label: 'Low crowds', filter: 'low-crowds' },
-    { icon: '/assets/icons/tag-outdoor.svg', label: 'Outdoor areas', filter: 'outdoor' },
+    { emoji: '🤫', label: 'Quiet spaces', filter: 'quiet' },
+    { emoji: '💡', label: 'Soft lighting', filter: 'soft-lighting' },
+    { emoji: '👥', label: 'Low crowds', filter: 'low-crowds' },
+    { emoji: '🌿', label: 'Outdoor areas', filter: 'outdoor' },
 ];
 
 function LaunchScreen({ onExploreMap }) {
@@ -81,7 +81,7 @@ function LaunchScreen({ onExploreMap }) {
             <header className="launch-header">
                 <div className="launch-logo">
                     <div className="launch-logo-icon">
-                        <img src="/assets/icons/logo.svg" alt="SensorySafe" />
+                        <span style={{ fontSize: 22, lineHeight: 1 }}>🧠</span>
                     </div>
                     <div className="launch-logo-text">
                         <h1>SensorySafe Map</h1>
@@ -115,8 +115,7 @@ function LaunchScreen({ onExploreMap }) {
             <div className="launch-bg">
                 <section className="launch-hero">
                     <div className="launch-badge">
-                        <img src="/assets/icons/sparkle.svg" alt="" />
-                        A calmer way to explore
+                        ✨ A calmer way to explore
                     </div>
 
                     <h2 className="launch-heading">
@@ -129,25 +128,11 @@ function LaunchScreen({ onExploreMap }) {
 
                     <div className="launch-map-card" onClick={() => handleNavigate()} role="button" tabIndex={0}>
                         <div className="launch-map-preview">
-                            <img className="map-bg" src="/assets/images/map-preview.jpg" alt="Map preview" />
+                            <div className="map-bg" style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #e8f4f8, #d1ecf1, #bee5eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, opacity: 0.7 }}>🗺️</div>
                             <div className="map-overlay" />
 
                             <div className="map-nearby-badge">
-                                <img src="/assets/icons/map-icon.svg" alt="" />
-                                Nearby map
-                            </div>
-
-                            <div className="map-pin green pin-1">
-                                <img src="/assets/icons/pin-green1.svg" alt="" />
-                            </div>
-                            <div className="map-pin green pin-2">
-                                <img src="/assets/icons/pin-green2.svg" alt="" />
-                            </div>
-                            <div className="map-pin yellow pin-3">
-                                <img src="/assets/icons/pin-yellow.svg" alt="" />
-                            </div>
-                            <div className="map-pin red pin-4">
-                                <img src="/assets/icons/pin-red.svg" alt="" />
+                                🗺️ Nearby map
                             </div>
 
                             <div className="map-legend">
@@ -167,7 +152,7 @@ function LaunchScreen({ onExploreMap }) {
 
                             <form className="map-search" onSubmit={handleSearch} onClick={(e) => e.stopPropagation()}>
                                 <div className="map-search-input">
-                                    <img src="/assets/icons/search.svg" alt="" />
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                                     <input
                                         type="text"
                                         placeholder="Search places, needs, or triggers"
@@ -191,7 +176,7 @@ function LaunchScreen({ onExploreMap }) {
                                 className="popular-tag"
                                 onClick={() => handleNavigate(tag.filter)}
                             >
-                                <img src={tag.icon} alt="" />
+                                <span>{tag.emoji}</span>
                                 {tag.label}
                             </button>
                         ))}
@@ -213,7 +198,7 @@ function LaunchScreen({ onExploreMap }) {
                                 onKeyDown={(e) => e.key === 'Enter' && handleNavigate(cat.filter)}
                             >
                                 <div className="cat-icon">
-                                    <img src={cat.icon} alt="" />
+                                    <span style={{ fontSize: 24 }}>{cat.emoji}</span>
                                 </div>
                                 <div>
                                     <h3>{cat.title}</h3>

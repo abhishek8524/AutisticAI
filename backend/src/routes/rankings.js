@@ -17,6 +17,7 @@ router.get("/", async (req, res) => {
                     select: {
                         id: true,
                         name: true,
+                        category: true,
                         address: true,
                         latitude: true,
                         longitude: true,

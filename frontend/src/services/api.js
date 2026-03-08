@@ -1,16 +1,33 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: '',
+    baseURL: import.meta.env.VITE_API_URL || '',
     timeout: 10000,
     headers: {
         'Content-Type': 'application/json',
     },
 });
 
-// ─── Request Interceptor (logging) ───────────────────────────
+// ─── Auth Token Support ──────────────────────────────────────
+let tokenGetter = null;
+
+export const setTokenGetter = (fn) => {
+    tokenGetter = fn;
+};
+
+// ─── Request Interceptor (auth + logging) ────────────────────
 api.interceptors.request.use(
-    (config) => {
+    async (config) => {
+        if (tokenGetter) {
+            try {
+                const token = await tokenGetter();
+                if (token) {
+                    config.headers.Authorization = `Bearer ${token}`;
+                }
+            } catch {
+                // No token available (not logged in) — public endpoints still work
+            }
+        }
         console.log(`[API] ${config.method.toUpperCase()} ${config.url}`, config.params || '');
         return config;
     },
@@ -34,7 +51,6 @@ api.interceptors.response.use(
 
 // ═════════════════════════════════════════════════════════════
 // ENDPOINT FUNCTIONS
-// Each returns Axios promise — components handle .then/.catch
 // ═════════════════════════════════════════════════════════════
 
 // ─── Locations (GeoJSON for map layers) ─────────────────────
@@ -46,13 +62,25 @@ export const getLocationById = (id) => {
     return api.get(`/locations/${id}`);
 };
 
+export const getLocationHeatmap = () => {
+    return api.get('/locations/heatmap');
+};
+
+export const getLocationMatch = () => {
+    return api.get('/locations/match');
+};
+
+export const searchLocations = (query) => {
+    return api.get('/locations/search', { params: { q: query } });
+};
+
 // ─── Reviews ────────────────────────────────────────────────
 export const submitReview = (reviewData) => {
     return api.post('/reviews', reviewData);
 };
 
 export const getReviewsByLocation = (locationId) => {
-    return api.get('/reviews', { params: { locationId } });
+    return api.get(`/reviews/${locationId}`);
 };
 
 // ─── Rankings ───────────────────────────────────────────────
@@ -71,11 +99,33 @@ export const updateSensoryProfile = (profileData) => {
 
 // ─── AI Insights (Gemini) ───────────────────────────────────
 export const getAIInsights = (locationId) => {
-    return api.get('/ai', { params: { locationId } });
+    return api.post(`/ai/insights/${locationId}`);
 };
 
 export const analyzeReview = (reviewText) => {
     return api.post('/ai/analyze', { text: reviewText });
+};
+
+// ─── Saved Places ───────────────────────────────────────────
+export const getSavedPlaces = () => {
+    return api.get('/saved-places');
+};
+
+export const savePlace = (locationId) => {
+    return api.post('/saved-places', { locationId });
+};
+
+export const removeSavedPlace = (locationId) => {
+    return api.delete(`/saved-places/${locationId}`);
+};
+
+// ─── Image Upload ───────────────────────────────────────────
+export const uploadImage = (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    return api.post('/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
 };
 
 export default api;

@@ -10,6 +10,8 @@ export default defineConfig({
       '/rankings': 'http://localhost:3000',
       '/profiles': 'http://localhost:3000',
       '/ai': 'http://localhost:3000',
+      '/saved-places': 'http://localhost:3000',
+      '/upload': 'http://localhost:3000',
     },
   },
 })

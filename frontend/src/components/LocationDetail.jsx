@@ -24,7 +24,8 @@ function LocationDetail({ location, onClose }) {
             .then(([reviewsResult, insightsResult]) => {
                 if (reviewsResult.status === 'fulfilled') {
                     console.log('[LocationDetail] Reviews loaded:', reviewsResult.value.data);
-                    setReviews(reviewsResult.value.data?.reviews || []);
+                    const data = reviewsResult.value.data;
+                    setReviews(Array.isArray(data) ? data : data?.reviews || []);
                 } else {
                     console.warn('[LocationDetail] Reviews fetch failed:', reviewsResult.reason?.message);
                 }
@@ -82,10 +83,26 @@ function LocationDetail({ location, onClose }) {
                         {location.ai_summary}
                     </div>
                 )}
-                {aiInsight && (
+                {aiInsight && !aiInsight.error && (
                     <div style={{ background: 'rgba(255,255,255,0.1)', padding: 12, borderRadius: 6, marginTop: 8 }}>
-                        {aiInsight.summary || JSON.stringify(aiInsight)}
+                        {aiInsight.confidence && <div style={{ marginBottom: 6 }}>Confidence: <strong>{aiInsight.confidence}%</strong></div>}
+                        {aiInsight.noise && <div>Noise: {aiInsight.noise.summary} ({aiInsight.noise.score}/5)</div>}
+                        {aiInsight.lighting && <div>Lighting: {aiInsight.lighting.summary} ({aiInsight.lighting.score}/5)</div>}
+                        {aiInsight.crowd && <div>Crowd: {aiInsight.crowd.summary} ({aiInsight.crowd.score}/5)</div>}
+                        {aiInsight.bestTime && <div style={{ marginTop: 6 }}>Best time: {aiInsight.bestTime}</div>}
+                        {aiInsight.tags && <div style={{ marginTop: 6 }}>Tags: {aiInsight.tags.join(', ')}</div>}
+                        {aiInsight.preparationGuide && (
+                            <div style={{ marginTop: 6 }}>
+                                <strong>Tips:</strong>
+                                <ul style={{ margin: '4px 0', paddingLeft: 16 }}>
+                                    {aiInsight.preparationGuide.map((tip, i) => <li key={i}>{tip}</li>)}
+                                </ul>
+                            </div>
+                        )}
                     </div>
+                )}
+                {aiInsight?.error && (
+                    <div style={{ color: '#f88', marginTop: 8 }}>{aiInsight.error}</div>
                 )}
                 {!loading && !location.ai_summary && !aiInsight && (
                     <div style={{ color: '#888' }}>No AI insights available yet.</div>
@@ -98,12 +115,15 @@ function LocationDetail({ location, onClose }) {
                 {loading && <div>Loading reviews...</div>}
                 {reviews.length > 0 ? (
                     reviews.map((review, i) => (
-                        <div key={i} style={{ background: 'rgba(255,255,255,0.05)', padding: 10, borderRadius: 6, marginBottom: 8 }}>
-                            <div style={{ fontSize: 12, color: '#888' }}>{review.user || 'Anonymous'}</div>
-                            <div>{review.text || review.review_text}</div>
-                            {review.noise_score != null && (
+                        <div key={review.id || i} style={{ background: 'rgba(255,255,255,0.05)', padding: 10, borderRadius: 6, marginBottom: 8 }}>
+                            <div style={{ fontSize: 12, color: '#888' }}>
+                                {review.user || 'Anonymous'}
+                                {review.rating != null && <span> — Rating: {review.rating}/10</span>}
+                            </div>
+                            <div>{review.bodyText || review.text || review.review_text}</div>
+                            {review.noiseLevel != null && (
                                 <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
-                                    Noise: {review.noise_score} | Light: {review.lighting_score} | Crowd: {review.crowd_score}
+                                    Noise: {review.noiseLevel} | Light: {review.lightingLevel} | Crowd: {review.crowdLevel}
                                 </div>
                             )}
                         </div>

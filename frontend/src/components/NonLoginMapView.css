@@ -885,13 +885,52 @@
   .nlm-heatmap-toggle {
     width: 340px;
   }
+  .nlm-sidebar-left {
+    width: 280px;
+  }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 700px) {
   .nlm-sidebar-left {
-    width: calc(100vw - 32px);
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 45vh;
+    border-radius: 20px 20px 0 0;
+    z-index: 20;
+    gap: 16px;
+    padding: 16px;
+  }
+  .nlm-hero-card {
+    display: none;
   }
   .nlm-heatmap-toggle {
     width: calc(100vw - 32px);
+    top: 12px;
+  }
+  .nlm-bottom-search {
+    display: none;
+  }
+  .nlm-category-chips {
+    flex-wrap: wrap;
+  }
+  .nlm-cat-chip {
+    flex: 0 1 calc(50% - 5px);
+  }
+}
+
+@media (max-width: 480px) {
+  .nlm-sidebar-left {
+    max-height: 50vh;
+  }
+  .nlm-ranked {
+    padding: 12px;
+  }
+  .nlm-heatmap-toggle {
+    padding: 10px 14px;
+    min-height: 56px;
   }
 }
