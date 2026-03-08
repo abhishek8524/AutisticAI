@@ -5,7 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import MapView from './MapView';
 import Dashboard from './Dashboard';
 import LogoutConfirmation from './LogoutConfirmation';
-import { getRankings, getLocationHeatmap, getLocationMatch, getSensoryProfile, getLocationById, getAIInsights, searchLocations } from '../services/api';
+import { getRankings, getLocationHeatmap, getLocationMatch, getSensoryProfile, getLocationById, getAIInsights, searchLocations, getSavedPlaces, savePlace, removeSavedPlace } from '../services/api';
 import './LoggedInMapView.css';
 
 const NAV_ITEMS = [
@@ -66,8 +66,10 @@ function LoggedInMapView({ onBackToHome, initialSearchQuery, initialFilter }) {
   const [userCoords, setUserCoords] = useState(null);
   const [avgRating, setAvgRating] = useState(null);
   const [nearbyPlaces, setNearbyPlaces] = useState([]);
+  const [savedPlaceIds, setSavedPlaceIds] = useState(new Set());
+  const [saveLoading, setSaveLoading] = useState(false);
 
-  // --- Mount: fetch heatmap, rankings, geolocation, match scores, profile ---
+  // --- Mount: fetch heatmap, rankings, geolocation, match scores, profile, saved places ---
   useEffect(() => {
     getLocationHeatmap()
       .then((res) => {
@@ -120,6 +122,12 @@ function LoggedInMapView({ onBackToHome, initialSearchQuery, initialFilter }) {
         if (token) {
           getLocationMatch().then((res) => setMatchScores(res.data || [])).catch(() => {});
           getSensoryProfile().then((res) => setUserProfile(res.data || null)).catch(() => {});
+          getSavedPlaces()
+            .then((res) => {
+              const list = Array.isArray(res.data) ? res.data : [];
+              setSavedPlaceIds(new Set(list.map((s) => s.location?.id || s.locationId).filter(Boolean)));
+            })
+            .catch(() => {});
         }
       } catch { /* not authenticated */ }
     };
@@ -205,6 +213,30 @@ function LoggedInMapView({ onBackToHome, initialSearchQuery, initialFilter }) {
 
   const handlePersonalize = () => {
     navigate('/profile');
+  };
+
+  const handleToggleSaved = async () => {
+    const locId = selectedLocation?.id;
+    if (!locId || saveLoading) return;
+    const isSaved = savedPlaceIds.has(locId);
+    setSaveLoading(true);
+    try {
+      if (isSaved) {
+        await removeSavedPlace(locId);
+        setSavedPlaceIds((prev) => {
+          const next = new Set(prev);
+          next.delete(locId);
+          return next;
+        });
+      } else {
+        await savePlace(locId);
+        setSavedPlaceIds((prev) => new Set([...prev, locId]));
+      }
+    } catch {
+      // keep state unchanged on error
+    } finally {
+      setSaveLoading(false);
+    }
   };
 
   // --- Derived values ---
@@ -305,8 +337,11 @@ function LoggedInMapView({ onBackToHome, initialSearchQuery, initialFilter }) {
   const bestTimeText = aiInsights?.bestTime || (snapshot?.bestWindow ?? '—');
 
   const getDistance = useCallback((loc) => {
-    if (!userCoords || !loc.latitude || !loc.longitude) return '— km away';
-    return haversineDistance(userCoords.lat, userCoords.lng, loc.latitude, loc.longitude);
+    if (!userCoords) return '— km away';
+    const lat = loc.latitude ?? loc.position?.[1];
+    const lng = loc.longitude ?? loc.position?.[0];
+    if (lat == null || lng == null) return '— km away';
+    return haversineDistance(userCoords.lat, userCoords.lng, lat, lng);
   }, [userCoords]);
 
   return (
@@ -415,7 +450,13 @@ function LoggedInMapView({ onBackToHome, initialSearchQuery, initialFilter }) {
             {/* Map */}
             <div className="lmv-map-section">
               <div className="lmv-map-inner">
-                <MapView onLocationSelect={handleLocationSelect} filter={activeFilter} searchResultsGeoJSON={searchResults} />
+                <MapView
+                  onLocationSelect={handleLocationSelect}
+                  filter={activeFilter}
+                  searchResultsGeoJSON={searchResults}
+                  selectedLocationId={selectedLocation?.id}
+                  selectedLocation={selectedLocation}
+                />
               </div>
 
               <div className="lmv-map-legend">
@@ -445,23 +486,30 @@ function LoggedInMapView({ onBackToHome, initialSearchQuery, initialFilter }) {
               <div className="lmv-nearby-overlay">
                 <span className="lmv-nearby-label">Top nearby places</span>
                 <div className="lmv-nearby-cards">
-                  {nearbyPlaces.map((place) => (
-                    <div
-                      key={place.name}
-                      className={`lmv-nearby-card ${place.featured ? 'featured' : 'regular'}`}
-                      onClick={() => handleLocationSelect(place)}
-                    >
-                      <div className="lmv-nearby-card-header">
-                        <span className={`lmv-nearby-score ${place.tier}`}>{place.score.toFixed(1)}</span>
-                        <span className="lmv-nearby-distance">{getDistance(place)}</span>
-                      </div>
-                      <div className="lmv-nearby-card-info">
-                        <h4>{place.name}</h4>
-                        <p className="card-tags">{place.tags}</p>
-                        <p className="card-desc">{place.desc}</p>
-                      </div>
+                  {nearbyPlaces.length === 0 ? (
+                    <div className="lmv-nearby-empty">
+                      <p>No places loaded yet.</p>
+                      <p className="lmv-nearby-empty-hint">Run the backend and seed data to see rankings here.</p>
                     </div>
-                  ))}
+                  ) : (
+                    nearbyPlaces.map((place) => (
+                      <div
+                        key={place.id || place.name}
+                        className={`lmv-nearby-card ${place.featured ? 'featured' : 'regular'} ${selectedLocation?.id === place.id ? 'selected' : ''}`}
+                        onClick={() => handleLocationSelect(place)}
+                      >
+                        <div className="lmv-nearby-card-header">
+                          <span className={`lmv-nearby-score ${place.tier}`}>{place.score.toFixed(1)}</span>
+                          <span className="lmv-nearby-distance">{getDistance(place)}</span>
+                        </div>
+                        <div className="lmv-nearby-card-info">
+                          <h4>{place.name}</h4>
+                          <p className="card-tags">{place.tags}</p>
+                          <p className="card-desc">{place.desc}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -501,9 +549,13 @@ function LoggedInMapView({ onBackToHome, initialSearchQuery, initialFilter }) {
             {/* Location Card */}
             <div className="lmv-detail-card">
               <div className="lmv-loc-photo">
-                <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #e8f0fe, #d4e8e6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', fontSize: 13 }}>
-                  {locName}
-                </div>
+                {locationDetail?.reviews?.find((r) => r.imageUrl)?.imageUrl ? (
+                  <img src={locationDetail.reviews.find((r) => r.imageUrl).imageUrl} alt={locName} />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #e8f0fe, #d4e8e6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', fontSize: 13 }}>
+                    {locName}
+                  </div>
+                )}
               </div>
 
               <div className="lmv-loc-header">
@@ -511,9 +563,34 @@ function LoggedInMapView({ onBackToHome, initialSearchQuery, initialFilter }) {
                   <h2>{locName}</h2>
                   <p>{reviewCount > 0 ? `${reviewCount} reviews` : 'No reviews yet'}</p>
                 </div>
-                <span className="lmv-match-badge">
-                  {matchPercent !== null ? `${matchPercent}% match` : (userProfile ? '—' : 'Set up profile')}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span className="lmv-match-badge">
+                    {matchPercent !== null ? `${matchPercent}% match` : (userProfile ? '—' : 'Set up profile')}
+                  </span>
+                  {selectedLocation?.id && (
+                    <button
+                      type="button"
+                      className={savedPlaceIds.has(selectedLocation.id) ? 'lmv-btn-saved' : 'lmv-btn-save'}
+                      onClick={handleToggleSaved}
+                      disabled={saveLoading}
+                      aria-label={savedPlaceIds.has(selectedLocation.id) ? 'Remove from saved' : 'Save place'}
+                    >
+                      {saveLoading ? (
+                        <span className="lmv-save-loading">…</span>
+                      ) : savedPlaceIds.has(selectedLocation.id) ? (
+                        <>
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.333 14V3.333a1.333 1.333 0 00-1.333-1.333H4a1.333 1.333 0 00-1.333 1.333V14L8 11.333l5.333 2.667z" fill="currentColor"/></svg>
+                          Saved
+                        </>
+                      ) : (
+                        <>
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.333 14V3.333a1.333 1.333 0 00-1.333-1.333H4a1.333 1.333 0 00-1.333 1.333V14L8 11.333l5.333 2.667z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          Save place
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Stars */}
