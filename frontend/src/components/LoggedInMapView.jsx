@@ -1,0 +1,954 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
+import { useNavigate } from 'react-router-dom';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import MapView from './MapView';
+import Dashboard from './Dashboard';
+import SavedPlaces from './SavedPlaces';
+import SensoryProfile from './SensoryProfile';
+import Settings from './Settings';
+import LogoutConfirmation from './LogoutConfirmation';
+import { getRankings, getLocationHeatmap, getLocationMatch, getSensoryProfile, updateSensoryProfile, getLocationById, getAIInsights, searchLocations, getSavedPlaces, savePlace, removeSavedPlace } from '../services/api';
+import './LoggedInMapView.css';
+
+const NAV_ITEMS = [
+  { id: 'explore', label: 'Explore map', icon: 'map', route: null },
+  { id: 'dashboard', label: 'Dashboard', icon: 'grid', route: null },
+  { id: 'saved', label: 'Saved places', icon: 'bookmark', route: null },
+  { id: 'profile', label: 'Sensory profile', icon: 'sliders', route: null },
+  { id: 'settings', label: 'Settings', icon: 'settings', route: null },
+];
+
+const scoreToLabel = (s) => s < 2 ? 'Low' : s < 3.5 ? 'Medium' : 'High';
+
+const haversineDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  const km = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return km < 1 ? `${(km * 1000).toFixed(0)}m away` : `${km.toFixed(1)}km away`;
+};
+
+function NavIcon({ type, active }) {
+  const color = active ? '#0849d6' : '#0b1720';
+  const icons = {
+    map: <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M1.5 4.5L6.5 1.5L11.5 4.5L16.5 1.5V13.5L11.5 16.5L6.5 13.5L1.5 16.5V4.5Z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M6.5 1.5V13.5" stroke={color} strokeWidth="1.5"/><path d="M11.5 4.5V16.5" stroke={color} strokeWidth="1.5"/></svg>,
+    grid: <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2.25" y="2.25" width="5.25" height="5.25" rx="1" stroke={color} strokeWidth="1.5"/><rect x="10.5" y="2.25" width="5.25" height="5.25" rx="1" stroke={color} strokeWidth="1.5"/><rect x="2.25" y="10.5" width="5.25" height="5.25" rx="1" stroke={color} strokeWidth="1.5"/><rect x="10.5" y="10.5" width="5.25" height="5.25" rx="1" stroke={color} strokeWidth="1.5"/></svg>,
+    bookmark: <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M14.25 15.75L9 12L3.75 15.75V3.75C3.75 3.35218 3.90804 2.97064 4.18934 2.68934C4.47064 2.40804 4.85218 2.25 5.25 2.25H12.75C13.1478 2.25 13.5294 2.40804 13.8107 2.68934C14.092 2.97064 14.25 3.35218 14.25 3.75V15.75Z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    sliders: <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><line x1="3" y1="6" x2="15" y2="6" stroke={color} strokeWidth="1.5" strokeLinecap="round"/><line x1="3" y1="12" x2="15" y2="12" stroke={color} strokeWidth="1.5" strokeLinecap="round"/><circle cx="6.75" cy="6" r="1.5" fill="white" stroke={color} strokeWidth="1.5"/><circle cx="11.25" cy="12" r="1.5" fill="white" stroke={color} strokeWidth="1.5"/></svg>,
+    settings: <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="2.25" stroke={color} strokeWidth="1.5"/><path d="M14.55 11.25a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-1.42 3.42 2 2 0 01-1.41-.59l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V16.5a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-3.42-1.42 2 2 0 01.59-1.41l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H1.5a2 2 0 010-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82L2.71 2.71a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H7.5a1.65 1.65 0 001-1.51V1.5a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v.08a1.65 1.65 0 001.51 1h.17a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  };
+  return icons[type] || null;
+}
+
+function SkeletonBlock({ width = '100%', height = 16 }) {
+  return <div className="animate-pulse" style={{ width, height, background: '#e5e7eb', borderRadius: 6 }} />;
+}
+
+function LoggedInMapView({ onBackToHome, initialSearchQuery, initialFilter }) {
+  const { user, getAccessTokenSilently } = useAuth0();
+  const navigate = useNavigate();
+
+  const [activeNav, setActiveNav] = useState('explore');
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery ?? '');
+  const [searchResults, setSearchResults] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [activeFilter, setActiveFilter] = useState(initialFilter ?? null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  const [heatmapData, setHeatmapData] = useState([]);
+  const [rankings, setRankings] = useState([]);
+  const [matchScores, setMatchScores] = useState([]);
+  const [userProfile, setUserProfile] = useState(null);
+  const [locationDetail, setLocationDetail] = useState(null);
+  const [aiInsights, setAiInsights] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [snapshot, setSnapshot] = useState(null);
+  const [userCoords, setUserCoords] = useState(null);
+  const [avgRating, setAvgRating] = useState(null);
+  const [nearbyPlaces, setNearbyPlaces] = useState([]);
+  const [savedPlaceIds, setSavedPlaceIds] = useState(new Set());
+  const [savedPlacesList, setSavedPlacesList] = useState([]);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [flyToLocation, setFlyToLocation] = useState(null);
+
+  const buildSnapshot = useCallback((data, coords) => {
+    if (!Array.isArray(data) || data.length === 0) return;
+    const nearby = coords
+      ? data.filter((l) => {
+          if (l.latitude == null || l.longitude == null) return false;
+          const R = 6371;
+          const dLat = ((l.latitude - coords.lat) * Math.PI) / 180;
+          const dLon = ((l.longitude - coords.lng) * Math.PI) / 180;
+          const a = Math.sin(dLat / 2) ** 2 + Math.cos((coords.lat * Math.PI) / 180) * Math.cos((l.latitude * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+          return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) < 10;
+        })
+      : data;
+    const calmCount = nearby.filter((l) => (l.comfortScore ?? 0) > 3.5).length;
+    const avgNoise = nearby.length > 0 ? nearby.reduce((a, b) => a + (b.noiseScore ?? 0), 0) / nearby.length : 0;
+    const avgComfort = nearby.length > 0 ? nearby.reduce((a, b) => a + (b.comfortScore ?? 0), 0) / nearby.length : 0;
+    const hour = new Date().getHours();
+    const bestWindow = hour < 10 ? 'Morning' : hour < 14 ? 'Midday' : hour < 17 ? 'Afternoon' : 'Evening';
+    setSnapshot({ calmCount, noiseTrend: scoreToLabel(avgNoise), avgComfort, bestWindow });
+  }, []);
+
+  useEffect(() => {
+    if (heatmapData.length > 0 && userCoords) {
+      buildSnapshot(heatmapData, userCoords);
+    }
+  }, [userCoords, heatmapData, buildSnapshot]);
+
+  // --- Mount: fetch heatmap, rankings, geolocation, match scores, profile, saved places ---
+  useEffect(() => {
+    getLocationHeatmap()
+      .then((res) => {
+        const data = res.data;
+        if (Array.isArray(data)) {
+          setHeatmapData(data);
+          buildSnapshot(data, null);
+        }
+      })
+      .catch(() => {});
+
+    getRankings()
+      .then((res) => {
+        const data = res.data;
+        if (Array.isArray(data) && data.length > 0) {
+          setRankings(data);
+          setNearbyPlaces(data.slice(0, 6).map((loc) => ({
+            name: loc.name,
+            score: loc.comfortScore ?? 0,
+            tags: loc.category || 'Sensory-friendly',
+            desc: `Noise: ${(loc.noiseScore || 0).toFixed(1)} · Lighting: ${(loc.lightingScore || 0).toFixed(1)} · Crowd: ${(loc.crowdScore || 0).toFixed(1)}`,
+            tier: (loc.comfortScore ?? 0) >= 3.5 ? 'high' : 'medium',
+            featured: false,
+            comfort_score: loc.comfortScore,
+            noise_score: loc.noiseScore,
+            lighting_score: loc.lightingScore,
+            crowd_score: loc.crowdScore,
+            id: loc.locationId,
+            latitude: loc.latitude,
+            longitude: loc.longitude,
+            category: loc.category,
+          })));
+        }
+      })
+      .catch(() => {});
+
+    navigator.geolocation?.getCurrentPosition(
+      (pos) => setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => setUserCoords(null)
+    );
+
+    const fetchProtected = async () => {
+      try {
+        const token = await getAccessTokenSilently({ authorizationParams: { audience: import.meta.env.VITE_AUTH0_AUDIENCE } });
+        if (token) {
+          getLocationMatch().then((res) => setMatchScores(res.data || [])).catch(() => {});
+          getSensoryProfile().then((res) => setUserProfile(res.data || null)).catch(() => {});
+          getSavedPlaces()
+            .then((res) => {
+              const list = Array.isArray(res.data) ? res.data : [];
+              setSavedPlacesList(list);
+              setSavedPlaceIds(new Set(list.map((s) => s.location?.id || s.locationId).filter(Boolean)));
+            })
+            .catch(() => {});
+        }
+      } catch { /* not authenticated */ }
+    };
+    fetchProtected();
+  }, [getAccessTokenSilently]);
+
+  // --- On mount: run search if opened from launch with a query ---
+  useEffect(() => {
+    if (!initialSearchQuery?.trim()) return;
+    setSearchLoading(true);
+    searchLocations(initialSearchQuery.trim())
+      .then((res) => setSearchResults(res.data))
+      .catch(() => setSearchResults({ features: [] }))
+      .finally(() => setSearchLoading(false));
+  }, [initialSearchQuery]);
+
+  // --- When selected location changes: fetch detail + AI ---
+  useEffect(() => {
+    if (!selectedLocation) return;
+
+    setAiInsights(null);
+    setLocationDetail(null);
+    setAvgRating(null);
+
+    const locId = selectedLocation.id;
+    if (!locId) return;
+
+    getLocationById(locId)
+      .then((res) => {
+        const detail = res.data;
+        setLocationDetail(detail);
+        if (detail?.reviews?.length > 0) {
+          const avg = detail.reviews.reduce((a, b) => a + (b.rating || 0), 0) / detail.reviews.length;
+          setAvgRating(avg);
+        }
+      })
+      .catch(() => {});
+
+    const fetchAI = async () => {
+      try {
+        setAiLoading(true);
+        await getAccessTokenSilently({ authorizationParams: { audience: import.meta.env.VITE_AUTH0_AUDIENCE } });
+        const res = await getAIInsights(locId);
+        setAiInsights(res.data);
+      } catch { /* AI not available */ }
+      finally { setAiLoading(false); }
+    };
+    fetchAI();
+  }, [selectedLocation, getAccessTokenSilently]);
+
+  const handleLocationSelect = (location) => {
+    setSelectedLocation(location);
+  };
+
+  const handleNavClick = (item) => {
+    if (item.route) {
+      navigate(item.route);
+    } else {
+      setActiveNav(item.id);
+    }
+  };
+
+  const handleSearchSubmit = async (e) => {
+    e?.preventDefault();
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    setSearchLoading(true);
+    try {
+      const res = await searchLocations(searchQuery.trim());
+      setSearchResults(res.data);
+    } catch {
+      setSearchResults({ features: [] });
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleCalmRoute = () => {
+    setActiveFilter((prev) => prev === 'quiet-now' ? null : 'quiet-now');
+  };
+
+  const handlePersonalize = () => {
+    setActiveNav('profile');
+  };
+
+  const refreshSavedPlaces = () => {
+    getSavedPlaces()
+      .then((res) => {
+        const list = Array.isArray(res.data) ? res.data : [];
+        setSavedPlacesList(list);
+        setSavedPlaceIds(new Set(list.map((s) => s.location?.id || s.locationId).filter(Boolean)));
+      })
+      .catch(() => {});
+  };
+
+  const handleToggleSaved = async () => {
+    const locId = selectedLocation?.id;
+    if (!locId || saveLoading) return;
+    const isSaved = savedPlaceIds.has(locId);
+    setSaveLoading(true);
+    try {
+      if (isSaved) {
+        await removeSavedPlace(locId);
+        setSavedPlaceIds((prev) => {
+          const next = new Set(prev);
+          next.delete(locId);
+          return next;
+        });
+      } else {
+        await savePlace(locId);
+        setSavedPlaceIds((prev) => new Set([...prev, locId]));
+      }
+      refreshSavedPlaces();
+    } catch {
+      // keep state unchanged on error
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  // --- Derived values ---
+  const sensory = locationDetail?.sensoryScores || selectedLocation || {};
+  const locName = selectedLocation?.name || 'Select a location';
+  const comfortScore = (sensory.comfortScore ?? sensory.comfort_score ?? 0).toFixed(1);
+  const noiseVal = sensory.noiseScore ?? sensory.noise_score ?? 0;
+  const noiseLevel = scoreToLabel(noiseVal);
+
+  const currentMatch = selectedLocation?.id
+    ? matchScores.find((m) => m.locationId === selectedLocation.id)
+    : null;
+  const matchPercent = currentMatch?.matchScore ?? null;
+
+  // Comfort score breakdown
+  const total = (sensory.noiseScore ?? sensory.noise_score ?? 0) +
+    (sensory.crowdScore ?? sensory.crowd_score ?? 0) +
+    (sensory.lightingScore ?? sensory.lighting_score ?? 0) +
+    (sensory.comfortScore ?? sensory.comfort_score ?? 0);
+  const breakdown = total > 0 ? {
+    noise: ((sensory.noiseScore ?? sensory.noise_score ?? 0) / total * 100).toFixed(0),
+    crowd: ((sensory.crowdScore ?? sensory.crowd_score ?? 0) / total * 100).toFixed(0),
+    lighting: ((sensory.lightingScore ?? sensory.lighting_score ?? 0) / total * 100).toFixed(0),
+    comfort: ((sensory.comfortScore ?? sensory.comfort_score ?? 0) / total * 100).toFixed(0),
+  } : { noise: '0', crowd: '0', lighting: '0', comfort: '0' };
+
+  // Location tags from AI or sensory scores
+  const locationTags = (() => {
+    if (aiInsights?.tags?.length > 0) return aiInsights.tags;
+    const tags = [];
+    const ns = sensory.noiseScore ?? sensory.noise_score ?? 3;
+    const ls = sensory.lightingScore ?? sensory.lighting_score ?? 3;
+    const cs = sensory.crowdScore ?? sensory.crowd_score ?? 3;
+    const cfs = sensory.comfortScore ?? sensory.comfort_score ?? 3;
+    if (ns < 2) tags.push('Very quiet');
+    if (ls < 2) tags.push('Dim lighting');
+    else if (ls >= 2 && ls < 3.5) tags.push('Soft daylight');
+    if (cs < 2) tags.push('Low crowds');
+    if (cfs > 3.5) tags.push('Highly comfortable');
+    return tags.length > 0 ? tags : ['Sensory-friendly'];
+  })();
+
+  // Noise chart data
+  const baseNoise = sensory.noiseScore ?? sensory.noise_score ?? 2.5;
+  const noiseChartData = [
+    { time: 'Morning', noise: +(baseNoise * 0.5).toFixed(1), calm: +(5 - baseNoise * 0.5).toFixed(1) },
+    { time: '10am', noise: +(baseNoise * 0.7).toFixed(1), calm: +(5 - baseNoise * 0.7).toFixed(1) },
+    { time: 'Noon', noise: +(baseNoise * 1.0).toFixed(1), calm: +(5 - baseNoise * 1.0).toFixed(1) },
+    { time: '4pm', noise: +(baseNoise * 1.2).toFixed(1), calm: +(5 - baseNoise * 1.2).toFixed(1) },
+    { time: 'Evening', noise: +(baseNoise * 1.4).toFixed(1), calm: +(5 - baseNoise * 1.4).toFixed(1) },
+  ];
+
+  // Radar chart data
+  const radarData = [
+    { axis: 'Noise', value: (sensory.noiseScore ?? sensory.noise_score ?? 0) * 2 },
+    { axis: 'Lighting', value: (sensory.lightingScore ?? sensory.lighting_score ?? 0) * 2 },
+    { axis: 'Crowds', value: (sensory.crowdScore ?? sensory.crowd_score ?? 0) * 2 },
+    { axis: 'Comfort', value: (sensory.comfortScore ?? sensory.comfort_score ?? 0) * 2 },
+  ];
+
+  // Possible triggers
+  const triggers = (() => {
+    const t = [];
+    const ns = sensory.noiseScore ?? sensory.noise_score ?? 0;
+    const cs = sensory.crowdScore ?? sensory.crowd_score ?? 0;
+    const ls = sensory.lightingScore ?? sensory.lighting_score ?? 0;
+    if (ns > 3) t.push('High noise levels expected');
+    if (cs > 3) t.push('Dense crowds likely');
+    if (ls > 3.5) t.push('Bright lighting throughout');
+    return t;
+  })();
+
+  const triggerTip = (() => {
+    const cs = sensory.crowdScore ?? sensory.crowd_score ?? 0;
+    const ns = sensory.noiseScore ?? sensory.noise_score ?? 0;
+    if (cs > 3) return 'Visit before 11am for fewer crowds.';
+    if (ns > 3) return 'Morning visits are quieter.';
+    return null;
+  })();
+
+  // Match checks
+  const matchChecks = (() => {
+    if (!userProfile || !selectedLocation) return [];
+    const checks = [];
+    const ns = sensory.noiseScore ?? sensory.noise_score ?? 0;
+    const ls = sensory.lightingScore ?? sensory.lighting_score ?? 0;
+    const cs = sensory.crowdScore ?? sensory.crowd_score ?? 0;
+    const cfs = sensory.comfortScore ?? sensory.comfort_score ?? 0;
+    if (ns <= (userProfile.noiseTolerance ?? 3) + 1) checks.push('Noise level matches your tolerance');
+    if (ls <= (userProfile.lightingTolerance ?? 3) + 1) checks.push('Lighting suits your sensitivity');
+    if (cs <= (userProfile.crowdTolerance ?? 3) + 1) checks.push('Crowd density fits your comfort zone');
+    if (cfs > 3) checks.push('Overall comfort score is high');
+    return checks;
+  })();
+
+  const reviewCount = locationDetail?.sensoryScores?.reviewCount ?? locationDetail?.reviews?.length ?? 0;
+
+  const bestTimeText = aiInsights?.bestTime || (snapshot?.bestWindow ?? '—');
+
+  const getDistance = useCallback((loc) => {
+    if (!userCoords) return '— km away';
+    const lat = loc.latitude ?? loc.position?.[1];
+    const lng = loc.longitude ?? loc.position?.[0];
+    if (lat == null || lng == null) return '— km away';
+    return haversineDistance(userCoords.lat, userCoords.lng, lat, lng);
+  }, [userCoords]);
+
+  return (
+    <div className="lmv">
+      {/* Left Nav */}
+      <nav className="lmv-nav">
+        <div className="lmv-nav-logo">
+          <div className="lmv-nav-logo-icon">
+            <span style={{ fontSize: 20, lineHeight: 1 }}>🧠</span>
+          </div>
+          <div className="lmv-nav-logo-text">
+            <h1>SensorySafe Map</h1>
+            <p>Personal comfort dashboard</p>
+          </div>
+        </div>
+
+        <div className="lmv-nav-links">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              className={`lmv-nav-link${activeNav === item.id ? ' active' : ''}`}
+              onClick={() => handleNavClick(item)}
+            >
+              <NavIcon type={item.icon} active={activeNav === item.id} />
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="lmv-nav-spacer" />
+
+        <div className="lmv-nav-user" onClick={() => setShowLogoutModal(true)} style={{ cursor: 'pointer' }}>
+          <div className="lmv-nav-avatar">
+            {user?.picture ? (
+              <img src={user.picture} alt="" />
+            ) : (
+              <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #4b8bff, #6ad6c8)' }} />
+            )}
+          </div>
+          <div className="lmv-nav-user-info">
+            <h4>{user?.name?.substring(0, 14) || 'User'}…</h4>
+            <p>{userProfile ? `Noise tol: ${userProfile.noiseTolerance ?? '—'}` : 'Loading profile…'}</p>
+          </div>
+          <div className="lmv-nav-user-chevron">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6L8 10L12 6" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </div>
+        </div>
+      </nav>
+
+      {activeNav === 'settings' ? (
+        <Settings
+          user={user}
+          userProfile={userProfile}
+          onLogout={() => setShowLogoutModal(true)}
+        />
+      ) : activeNav === 'profile' ? (
+        <SensoryProfile
+          userProfile={userProfile}
+          onSave={async (data) => {
+            try {
+              const res = await updateSensoryProfile(data);
+              setUserProfile(res.data);
+            } catch { /* ignore */ }
+          }}
+        />
+      ) : activeNav === 'saved' ? (
+        <SavedPlaces
+          savedPlacesList={savedPlacesList}
+          userCoords={userCoords}
+          userProfile={userProfile}
+          matchScores={matchScores}
+          onRemovePlace={async (locId) => {
+            try {
+              await removeSavedPlace(locId);
+              refreshSavedPlaces();
+            } catch { /* ignore */ }
+          }}
+          onBack={() => setActiveNav('explore')}
+        />
+      ) : activeNav === 'dashboard' ? (
+        <Dashboard
+          userProfile={userProfile}
+          savedPlacesList={savedPlacesList}
+          bestMatch={matchScores?.[0] ?? null}
+          userCoords={userCoords}
+          snapshot={snapshot}
+          onEditProfile={() => setActiveNav('profile')}
+          onViewAllSaved={() => setActiveNav('saved')}
+          onCalmRoute={() => { setActiveNav('explore'); setActiveFilter((prev) => prev === 'quiet-now' ? null : 'quiet-now'); }}
+          onSearchGo={(query) => {
+            setSearchQuery(query);
+            setActiveNav('explore');
+            setSearchLoading(true);
+            searchLocations(query.trim())
+              .then((res) => setSearchResults(res.data))
+              .catch(() => setSearchResults({ features: [] }))
+              .finally(() => setSearchLoading(false));
+          }}
+        />
+      ) : (
+        <>
+          {/* Center Main */}
+          <main className="lmv-main">
+            {/* Comfort Snapshot */}
+            <div className="lmv-snapshot">
+              <div className="lmv-snapshot-header">
+                <div className="lmv-snapshot-title">
+                  <span>Today</span>
+                  <h2>Comfort snapshot</h2>
+                </div>
+                {snapshot && snapshot.avgComfort > 3 && (
+                  <span className="lmv-calm-badge">Calm now</span>
+                )}
+              </div>
+
+              <div className="lmv-snapshot-stats">
+                <div className="lmv-snapshot-big">
+                  {snapshot ? (
+                    <>
+                      <span className="big-number">{snapshot.calmCount}</span>
+                      <span className="big-label">calm places nearby</span>
+                    </>
+                  ) : (
+                    <SkeletonBlock width={120} height={38} />
+                  )}
+                </div>
+                <div className="lmv-snapshot-divider" />
+                <div className="lmv-snapshot-cards">
+                  <div className="lmv-stat-card">
+                    <div className="stat-label">Best window</div>
+                    <div className="stat-value">{snapshot?.bestWindow ?? '—'}</div>
+                  </div>
+                  <div className="lmv-stat-card">
+                    <div className="stat-label">Noise trend</div>
+                    <div className="stat-value">{snapshot?.noiseTrend ?? '—'}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="lmv-snapshot-tags">
+                {snapshot && snapshot.noiseTrend === 'Low' && (
+                  <span className="lmv-tag green">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M12.25 7A5.25 5.25 0 111.75 7a5.25 5.25 0 0110.5 0z" stroke="#05360d" strokeWidth="1.2"/><path d="M4.5 7l2 2 3.5-3.5" stroke="#05360d" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    Low noise nearby
+                  </span>
+                )}
+                <span className="lmv-tag gray">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.25" stroke="#0f1720" strokeWidth="1.2"/><path d="M7 3.5V7L9.25 8.25" stroke="#0f1720" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  Best: {snapshot?.bestWindow ?? '—'}
+                </span>
+              </div>
+            </div>
+
+            {/* Map */}
+            <div className="lmv-map-section">
+              <div className="lmv-map-inner">
+                <MapView
+                  onLocationSelect={handleLocationSelect}
+                  filter={activeFilter}
+                  searchResultsGeoJSON={searchResults}
+                  selectedLocationId={selectedLocation?.id}
+                  selectedLocation={selectedLocation}
+                  flyToLocation={flyToLocation}
+                />
+              </div>
+
+              <div className="lmv-map-legend">
+                <span className="lmv-legend-chip calm">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M12.25 7A5.25 5.25 0 111.75 7a5.25 5.25 0 0110.5 0z" stroke="#05360d" strokeWidth="1.2"/><path d="M4.5 7l2 2 3.5-3.5" stroke="#05360d" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  Calm
+                </span>
+                <span className="lmv-legend-chip moderate">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.25" stroke="#4a2a00" strokeWidth="1.2"/><circle cx="7" cy="7" r="1.5" fill="#4a2a00"/></svg>
+                  Moderate
+                </span>
+                <span className="lmv-legend-chip overwhelming">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.25" stroke="#4a0f00" strokeWidth="1.2"/><path d="M5 5l4 4M9 5l-4 4" stroke="#4a0f00" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                  Overwhelming
+                </span>
+              </div>
+
+              <button
+                className="lmv-map-time-filter"
+                onClick={() => setActiveFilter((prev) => prev === 'before-noon' ? null : 'before-noon')}
+                style={{ cursor: 'pointer', border: activeFilter === 'before-noon' ? '2px solid #4b8bff' : '1px solid rgba(0,0,0,0.08)' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#0f1720" strokeWidth="1.3"/><path d="M8 4V8L10.5 9.5" stroke="#0f1720" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                Before 11am
+              </button>
+
+              <div className="lmv-nearby-overlay">
+                <span className="lmv-nearby-label">Top nearby places</span>
+                <div className="lmv-nearby-cards">
+                  {nearbyPlaces.length === 0 ? (
+                    <div className="lmv-nearby-empty">
+                      <p>No places loaded yet.</p>
+                      <p className="lmv-nearby-empty-hint">Run the backend and seed data to see rankings here.</p>
+                    </div>
+                  ) : (
+                    nearbyPlaces.map((place) => (
+                      <div
+                        key={place.id || place.name}
+                        className={`lmv-nearby-card ${place.featured ? 'featured' : 'regular'} ${selectedLocation?.id === place.id ? 'selected' : ''}`}
+                        onClick={() => {
+                          handleLocationSelect(place);
+                          if (place.longitude != null && place.latitude != null) {
+                            setFlyToLocation({ longitude: place.longitude, latitude: place.latitude, zoom: 16, _ts: Date.now() });
+                          }
+                        }}
+                      >
+                        <div className="lmv-nearby-card-header">
+                          <span className={`lmv-nearby-score ${place.tier}`}>{place.score.toFixed(1)}</span>
+                          <span className="lmv-nearby-distance">{getDistance(place)}</span>
+                        </div>
+                        <div className="lmv-nearby-card-info">
+                          <h4>{place.name}</h4>
+                          <p className="card-tags">{place.tags}</p>
+                          <p className="card-desc">{place.desc}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Search Bar */}
+            <form className="lmv-bottom-bar" onSubmit={handleSearchSubmit}>
+              <div className="lmv-search-pill">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="8.25" cy="8.25" r="4.5" stroke="#6b7280" strokeWidth="1.5"/><path d="M15.75 15.75L11.5 11.5" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                <input
+                  type="text"
+                  placeholder="Search places or sensory tags"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  disabled={searchLoading}
+                />
+              </div>
+              {searchResults !== null && !searchResults?.features?.length && !searchLoading && (
+                <span style={{ position: 'absolute', bottom: '100%', left: 19, marginBottom: 6, fontSize: 13, color: '#ef4444' }}>
+                  No results found for &quot;{searchQuery}&quot;
+                </span>
+              )}
+              <div className="lmv-bottom-actions">
+                <button type="button" className="lmv-btn-outline" onClick={handleCalmRoute}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8h12M8.67 3.33L14 8l-5.33 4.67" stroke="#0f1720" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  Calm route
+                </button>
+                <button type="button" className="lmv-btn-primary" onClick={handlePersonalize}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M4 6l4-4 4 4" stroke="white" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  Personalize
+                </button>
+              </div>
+            </form>
+          </main>
+
+          {/* Right Detail Panel */}
+          <aside className="lmv-detail">
+            {/* Location Card */}
+            <div className="lmv-detail-card">
+              <div className="lmv-loc-photo">
+                {locationDetail?.reviews?.find((r) => r.imageUrl)?.imageUrl ? (
+                  <img src={locationDetail.reviews.find((r) => r.imageUrl).imageUrl} alt={locName} />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #e8f0fe, #d4e8e6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', fontSize: 13 }}>
+                    {locName}
+                  </div>
+                )}
+              </div>
+
+              <div className="lmv-loc-header">
+                <div className="lmv-loc-title">
+                  <h2>{locName}</h2>
+                  <p>{reviewCount > 0 ? `${reviewCount} reviews` : 'No reviews yet'}</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span className="lmv-match-badge">
+                    {matchPercent !== null ? `${matchPercent}% match` : (userProfile ? '—' : 'Set up profile')}
+                  </span>
+                  {selectedLocation?.id && (
+                    <button
+                      type="button"
+                      className={savedPlaceIds.has(selectedLocation.id) ? 'lmv-btn-saved' : 'lmv-btn-save'}
+                      onClick={handleToggleSaved}
+                      disabled={saveLoading}
+                      aria-label={savedPlaceIds.has(selectedLocation.id) ? 'Remove from saved' : 'Save place'}
+                    >
+                      {saveLoading ? (
+                        <span className="lmv-save-loading">…</span>
+                      ) : savedPlaceIds.has(selectedLocation.id) ? (
+                        <>
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.333 14V3.333a1.333 1.333 0 00-1.333-1.333H4a1.333 1.333 0 00-1.333 1.333V14L8 11.333l5.333 2.667z" fill="currentColor"/></svg>
+                          Saved
+                        </>
+                      ) : (
+                        <>
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.333 14V3.333a1.333 1.333 0 00-1.333-1.333H4a1.333 1.333 0 00-1.333 1.333V14L8 11.333l5.333 2.667z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          Save place
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Stars */}
+              {avgRating !== null && (
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <svg key={i} width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 1.33L10.06 5.51L14.67 6.18L11.33 9.43L12.12 14.01L8 11.85L3.88 14.01L4.67 9.43L1.33 6.18L5.94 5.51L8 1.33Z"
+                        fill={i <= Math.round(avgRating) ? '#F5A623' : 'none'}
+                        stroke={i <= Math.round(avgRating) ? '#F5A623' : '#CBD5E1'}
+                        strokeWidth="0.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  ))}
+                </div>
+              )}
+
+              <div className="lmv-stat-boxes">
+                <div className="lmv-stat-box">
+                  <div className="box-label">Comfort</div>
+                  <div className="box-value">{comfortScore}</div>
+                </div>
+                <div className="lmv-stat-box">
+                  <div className="box-label">Noise</div>
+                  <div className="box-value small">{noiseLevel}</div>
+                </div>
+                <div className="lmv-stat-box">
+                  <div className="box-label">Best time</div>
+                  <div className="box-value small">{bestTimeText}</div>
+                </div>
+              </div>
+
+              <div className="lmv-loc-tags">
+                {locationTags.map((tag) => (
+                  <span key={tag} className="lmv-loc-tag">{tag}</span>
+                ))}
+              </div>
+
+              {/* Rating tags */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                <span className="lmv-loc-tag" style={{ background: '#d6f5e1', color: '#05360d' }}>
+                  {Math.round((sensory.comfortScore ?? sensory.comfort_score ?? 0) / 5 * 100)}% would revisit
+                </span>
+                {(sensory.noiseScore ?? sensory.noise_score ?? 5) < 2 && (
+                  <span className="lmv-loc-tag" style={{ background: '#d6f5e1', color: '#05360d' }}>Low-noise favorite</span>
+                )}
+                {(sensory.crowdScore ?? sensory.crowd_score ?? 5) < 2 && (
+                  <span className="lmv-loc-tag" style={{ background: '#d6f5e1', color: '#05360d' }}>Low-crowd spot</span>
+                )}
+                {aiInsights?.bestTime && (
+                  <span className="lmv-loc-tag" style={{ background: '#eef3f8' }}>
+                    Best: {aiInsights.bestTime.split(' ').slice(0, 3).join(' ')}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Noise through the day */}
+            <div className="lmv-detail-card">
+              <div>
+                <h3 className="lmv-section-title">Noise through the day</h3>
+                <p className="lmv-section-desc">Based on sensory scores for this location.</p>
+              </div>
+              <div style={{ width: '100%', height: 120 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={noiseChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#edf3f8" />
+                    <XAxis dataKey="time" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                    <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} domain={[0, 5]} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="noise" stroke="#ffb3a3" strokeWidth={2} dot={false} name="Noise" />
+                    <Line type="monotone" dataKey="calm" stroke="#6ad6c8" strokeWidth={2} dot={false} name="Calm" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* AI Insight */}
+            <div className="lmv-detail-card">
+              <div>
+                <h3 className="lmv-section-title">AI insight</h3>
+                <p className="lmv-section-desc">Only the most important signals are shown.</p>
+              </div>
+
+              {aiLoading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <SkeletonBlock height={20} />
+                  <SkeletonBlock height={8} />
+                  <SkeletonBlock height={48} />
+                  <SkeletonBlock height={48} />
+                  <SkeletonBlock height={48} />
+                </div>
+              ) : aiInsights ? (
+                <>
+                  <div className="lmv-ai-header">
+                    <span className="lmv-ai-badge">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.25" stroke="#0f1720" strokeWidth="1.2"/><path d="M5.25 7h3.5M7 5.25v3.5" stroke="#0f1720" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                      AI confidence
+                    </span>
+                    <span className="lmv-ai-percent">{aiInsights.confidence}%</span>
+                  </div>
+
+                  <div className="lmv-ai-bar">
+                    <div className="lmv-ai-bar-fill" style={{ width: `${aiInsights.confidence}%` }} />
+                  </div>
+
+                  <div className="lmv-ai-insights">
+                    <div className="lmv-ai-item">
+                      <div className="lmv-ai-item-icon">
+                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2.5 7.5a5 5 0 0110 0" stroke="#f59e0b" strokeWidth="1.3" strokeLinecap="round"/><path d="M5 10.5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5" stroke="#f59e0b" strokeWidth="1.3" strokeLinecap="round"/></svg>
+                      </div>
+                      <div className="lmv-ai-item-text">
+                        <h5>Noise</h5>
+                        <p>{aiInsights.noise?.summary ?? '—'}</p>
+                      </div>
+                    </div>
+                    <div className="lmv-ai-item">
+                      <div className="lmv-ai-item-icon">
+                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="4" r="2" stroke="#8b5cf6" strokeWidth="1.3"/><path d="M7.5 6v5M5.5 8.5l2 2.5 2-2.5" stroke="#8b5cf6" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                      <div className="lmv-ai-item-text">
+                        <h5>Lighting</h5>
+                        <p>{aiInsights.lighting?.summary ?? '—'}</p>
+                      </div>
+                    </div>
+                    <div className="lmv-ai-item">
+                      <div className="lmv-ai-item-icon">
+                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5" stroke="#6b7280" strokeWidth="1.3"/><path d="M7.5 4v3.5l2.5 1.5" stroke="#6b7280" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                      <div className="lmv-ai-item-text">
+                        <h5>Best time</h5>
+                        <p>{aiInsights.bestTime ?? '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p style={{ color: '#6b7280', fontSize: 13 }}>Select a location to see AI insights.</p>
+              )}
+            </div>
+
+            {/* Sensory Profile (Radar) */}
+            <div className="lmv-detail-card">
+              <div>
+                <h3 className="lmv-section-title">Sensory profile</h3>
+                <p className="lmv-section-desc">A simplified radar view for this location.</p>
+              </div>
+
+              <div className="lmv-radar-container">
+                <div style={{ width: 250, height: 200 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart data={radarData} outerRadius={70}>
+                      <PolarGrid stroke="#e5e7eb" />
+                      <PolarAngleAxis dataKey="axis" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                      <PolarRadiusAxis angle={90} domain={[0, 10]} tick={{ fontSize: 9, fill: '#94a3b8' }} />
+                      <Radar dataKey="value" stroke="#4b8bff" fill="#4b8bff" fillOpacity={0.25} />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="lmv-profile-grid">
+                  <div className="lmv-profile-stat"><span className="pstat-label">Noise</span><span className="pstat-value">{((sensory.noiseScore ?? sensory.noise_score ?? 0) * 2).toFixed(0)}</span></div>
+                  <div className="lmv-profile-stat"><span className="pstat-label">Lighting</span><span className="pstat-value">{((sensory.lightingScore ?? sensory.lighting_score ?? 0) * 2).toFixed(0)}</span></div>
+                  <div className="lmv-profile-stat"><span className="pstat-label">Crowds</span><span className="pstat-value">{((sensory.crowdScore ?? sensory.crowd_score ?? 0) * 2).toFixed(0)}</span></div>
+                  <div className="lmv-profile-stat"><span className="pstat-label">Comfort</span><span className="pstat-value">{((sensory.comfortScore ?? sensory.comfort_score ?? 0) * 2).toFixed(0)}</span></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Comfort Score Breakdown */}
+            <div className="lmv-detail-card">
+              <div>
+                <h3 className="lmv-section-title">Comfort score</h3>
+                <p className="lmv-section-desc">How the score is calculated.</p>
+              </div>
+
+              <div className="lmv-comfort-header">
+                <div className="lmv-comfort-score">
+                  <div className="cscore-label">Sensory Comfort Score</div>
+                  <div className="cscore-value">{comfortScore} / 5</div>
+                </div>
+                <span className="lmv-tag green">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M12.25 7A5.25 5.25 0 111.75 7a5.25 5.25 0 0110.5 0z" stroke="#05360d" strokeWidth="1.2"/><path d="M4.5 7l2 2 3.5-3.5" stroke="#05360d" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  {parseInt(breakdown.noise) >= parseInt(breakdown.crowd) && parseInt(breakdown.noise) >= parseInt(breakdown.lighting) ? 'Noise matters most' :
+                   parseInt(breakdown.crowd) >= parseInt(breakdown.lighting) ? 'Crowds matter most' : 'Lighting matters most'}
+                </span>
+              </div>
+
+              <div className="lmv-score-bars">
+                <div className="lmv-score-row">
+                  <span className="sr-label">Noise</span>
+                  <div className="sr-bar"><div className="sr-fill blue" style={{ width: `${breakdown.noise}%` }} /></div>
+                  <span className="sr-percent">{breakdown.noise}%</span>
+                </div>
+                <div className="lmv-score-row">
+                  <span className="sr-label">Lighting</span>
+                  <div className="sr-bar"><div className="sr-fill teal" style={{ width: `${breakdown.lighting}%` }} /></div>
+                  <span className="sr-percent">{breakdown.lighting}%</span>
+                </div>
+                <div className="lmv-score-row">
+                  <span className="sr-label">Crowds</span>
+                  <div className="sr-bar"><div className="sr-fill yellow" style={{ width: `${breakdown.crowd}%` }} /></div>
+                  <span className="sr-percent">{breakdown.crowd}%</span>
+                </div>
+                <div className="lmv-score-row">
+                  <span className="sr-label">Comfort</span>
+                  <div className="sr-bar"><div className="sr-fill purple" style={{ width: `${breakdown.comfort}%` }} /></div>
+                  <span className="sr-percent">{breakdown.comfort}%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Why it fits you */}
+            <div className="lmv-detail-card">
+              <div>
+                <h3 className="lmv-section-title">Why it fits you</h3>
+                <p className="lmv-section-desc">A short recommendation and a soft alert.</p>
+              </div>
+
+              <div className="lmv-match-card">
+                <div className="lmv-match-card-header">
+                  <h4>Match score</h4>
+                  <span className="lmv-match-badge">{matchPercent !== null ? `${matchPercent}%` : '—'}</span>
+                </div>
+                <div className="lmv-match-bar">
+                  <div className="lmv-match-bar-fill" style={{ width: `${matchPercent ?? 0}%` }} />
+                </div>
+                <div className="lmv-match-checks">
+                  {matchChecks.length > 0 ? matchChecks.map((check) => (
+                    <div key={check} className="lmv-match-check">
+                      <span className="lmv-check-icon">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7l2.5 2.5L10.5 5" stroke="#05360d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </span>
+                      {check}
+                    </div>
+                  )) : (
+                    <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>
+                      {userProfile ? 'Select a location to see match details.' : 'Set up your sensory profile to see matches.'}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {triggers.length > 0 && (
+                <div className="lmv-trigger-card">
+                  <h4>Possible triggers later today</h4>
+                  <div className="lmv-trigger-chips">
+                    {triggers.map((t) => (
+                      <span key={t} className="lmv-trigger-chip">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.75v3.5L9.33 7" stroke="#0f1720" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="7" cy="7" r="5.25" stroke="#0f1720" strokeWidth="1.2"/></svg>
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                  {triggerTip && <p className="lmv-trigger-tip">Tip: {triggerTip}</p>}
+                </div>
+              )}
+            </div>
+          </aside>
+        </>
+      )}
+
+      {showLogoutModal && (
+        <LogoutConfirmation onCancel={() => setShowLogoutModal(false)} />
+      )}
+    </div>
+  );
+}
+
+export default LoggedInMapView;

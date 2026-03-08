@@ -1,0 +1,49 @@
+import { useState, useEffect } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
+import { setTokenGetter } from './services/api';
+import LaunchScreen from './components/LaunchScreen';
+import NonLoginMapView from './components/NonLoginMapView';
+import LoggedInMapView from './components/LoggedInMapView';
+
+function App() {
+  const { isAuthenticated, isLoading, getAccessTokenSilently } = useAuth0();
+  const [showMap, setShowMap] = useState(false);
+  const [exploreParams, setExploreParams] = useState(null);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      setTokenGetter(() => getAccessTokenSilently());
+    } else {
+      setTokenGetter(null);
+    }
+  }, [isAuthenticated, getAccessTokenSilently]);
+
+  const handleExploreMap = (params) => {
+    setExploreParams(params || null);
+    setShowMap(true);
+  };
+
+  const handleBackToHome = () => {
+    setShowMap(false);
+  };
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'Inter, sans-serif', color: '#6b7280' }}>
+        Loading...
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <LoggedInMapView onBackToHome={handleBackToHome} initialSearchQuery={exploreParams?.searchQuery} initialFilter={exploreParams?.filter} />;
+  }
+
+  if (showMap) {
+    return <NonLoginMapView onExploreMap={handleExploreMap} initialSearchQuery={exploreParams?.searchQuery} initialFilter={exploreParams?.filter} />;
+  }
+
+  return <LaunchScreen onExploreMap={handleExploreMap} />;
+}
+
+export default App;
