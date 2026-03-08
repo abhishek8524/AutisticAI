@@ -21,9 +21,6 @@
   cursor: pointer;
 }
 
-<<<<<<< Updated upstream
-/* ── Left Sidebar ── */
-=======
 /* Shift Mapbox zoom/locate controls down 10px */
 .nlm-map-container .mapboxgl-ctrl-top-right {
   margin-top: 10px;
@@ -70,7 +67,6 @@
 }
 
 /* ── Left Sidebar (stops above Mapbox logo) ── */
->>>>>>> Stashed changes
 .nlm-sidebar-left {
   position: absolute;
   top: 16px;
