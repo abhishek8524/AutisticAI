@@ -14,9 +14,63 @@
   position: absolute;
   inset: 0;
   z-index: 0;
+  cursor: pointer;
 }
 
+.nlm-map-container .mapboxgl-map {
+  cursor: pointer;
+}
+
+<<<<<<< Updated upstream
 /* ── Left Sidebar ── */
+=======
+/* Shift Mapbox zoom/locate controls down 10px */
+.nlm-map-container .mapboxgl-ctrl-top-right {
+  margin-top: 10px;
+}
+
+/* Close map button — top left of screen */
+.nlm-close-map-btn {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.nlm-close-map-btn:hover {
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.nlm-close-map-btn:focus-visible {
+  outline: 2px solid #4b8bff;
+  outline-offset: 2px;
+}
+
+.nlm-close-map-icon {
+  flex-shrink: 0;
+}
+
+.nlm-close-map-text {
+  white-space: nowrap;
+}
+
+/* ── Left Sidebar (stops above Mapbox logo) ── */
+>>>>>>> Stashed changes
 .nlm-sidebar-left {
   position: absolute;
   top: 16px;

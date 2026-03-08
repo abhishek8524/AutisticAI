@@ -226,6 +226,17 @@ function MapView({ onLocationSelect, filter, searchResultsGeoJSON, heatmapEnable
                             onLocationSelect(info.object);
                         }
                     },
+                    transitions: {
+                        getPosition: {
+                            duration: 450,
+                            easing: (t) => t * (2 - t),
+                        },
+                        getFillColor: {
+                            duration: 400,
+                            easing: (t) => t * (2 - t),
+                            enter: (color) => [color[0], color[1], color[2], 0],
+                        },
+                    },
                 })
             );
         }
