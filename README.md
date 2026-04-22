@@ -87,6 +87,7 @@ GEMINI_API_KEY=<google-gemini-api-key>
 CLOUDINARY_CLOUD_NAME=<cloudinary-cloud-name>
 CLOUDINARY_API_KEY=<cloudinary-api-key>
 CLOUDINARY_API_SECRET=<cloudinary-api-secret>
+ALLOWED_ORIGINS=https://<your-netlify-site>.netlify.app
 ```
 
 ### `frontend/.env`
@@ -173,6 +174,58 @@ Backend routes are under `backend/src/routes/` and cover:
 - Set all environment variables in deployment platforms (do not commit `.env`)
 - Ensure CORS and Auth0 allowed callback/origin URLs match deployed domains
 - Run `prisma generate` and `prisma migrate deploy` in backend deploy flow
+
+## Deploy: Netlify (Frontend) + Render (Backend)
+
+### 1) Deploy backend to Render
+
+- Create a new **Web Service** from this repository
+- Render detects `render.yaml` at repo root
+- Service uses:
+  - `rootDir`: `backend`
+  - Build command: `npm install && npx prisma generate && npx prisma migrate deploy`
+  - Start command: `npm start`
+
+Set Render environment variables:
+
+- `PORT=3000` (optional, Render provides one automatically)
+- `DATABASE_URL`
+- `AUTH0_ISSUER_BASE_URL`
+- `AUTH0_AUDIENCE`
+- `GOOGLE_PLACES_KEY`
+- `GEMINI_API_KEY`
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+- `ALLOWED_ORIGINS=https://<your-netlify-site>.netlify.app`
+
+After deploy, copy your backend URL, for example:
+
+`https://autisticai-backend.onrender.com`
+
+### 2) Deploy frontend to Netlify
+
+- Create a new site from this repository
+- Netlify detects `netlify.toml` at repo root
+- Frontend build config:
+  - Base directory: `frontend`
+  - Build command: `npm run build`
+  - Publish directory: `frontend/dist`
+
+Set Netlify environment variables:
+
+- `VITE_API_URL=https://<your-render-backend>.onrender.com`
+- `VITE_AUTH0_DOMAIN`
+- `VITE_AUTH0_CLIENT_ID`
+- `VITE_AUTH0_AUDIENCE`
+- `VITE_MAPBOX_TOKEN`
+
+### 3) Final auth/cors checks
+
+- In Auth0 Allowed Callback URLs, add your Netlify URL
+- In Auth0 Allowed Logout URLs, add your Netlify URL
+- In Auth0 Allowed Web Origins, add your Netlify URL
+- Confirm `ALLOWED_ORIGINS` on Render exactly matches your Netlify domain
 
 ## Accessibility and Product Goal
 

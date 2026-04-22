@@ -15,7 +15,25 @@ import discoverRouter from "./routes/discover.js";
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+app.use(
+    cors({
+        origin: (origin, callback) => {
+            // Allow non-browser clients and same-origin requests with no Origin header.
+            if (!origin) return callback(null, true);
+            if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+                return callback(null, true);
+            }
+            return callback(new Error("Not allowed by CORS"));
+        },
+        credentials: true,
+    })
+);
 app.use(express.json());
 
 app.get("/", (req, res) => {
